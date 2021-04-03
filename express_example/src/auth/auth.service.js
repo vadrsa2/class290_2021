@@ -1,15 +1,34 @@
 const User = require('../users/user.entity');
-const { Unauthorized } = require('http-errors')
+const users = require('../users/users.service');
+const { Unauthorized, Locked } = require('http-errors')
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 class AuthService {
     async validate(username, password) {
         const user = await User.findOne({ username });
-        if (!user || !bcrypt.compareSync(password, user.password)) {
+        if (!user) {
             throw new Unauthorized();
         }
-
+        else if(user.isLockedOut){
+            throw new Locked("The user is locked!");
+        }
+        else if(!bcrypt.compareSync(password, user.password)){
+            user.attempts = user.attempts + 1;
+            if(user.attempts == (process.env.MAX_FAILED_LOGIN_ATTEMPTS || 3)){
+                user.isLockedOut = true;
+                user.save();
+                throw new Locked("The user is locked!");
+            }
+            else{
+                user.save();
+                throw new Unauthorized();
+            }
+        }
+        if(user.attempts > 0){
+            user.attempts = 0;
+            user.save();
+        }
         return user;
     }
 

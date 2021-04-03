@@ -1,4 +1,4 @@
-const { Forbidden } = require('http-errors');
+const { Forbidden, Locked } = require('http-errors');
 const { validateToken } = require('../../auth/auth.service');
 const users = require('../../users/users.service');
 
@@ -9,6 +9,10 @@ const jwtMiddleware = async (req, res, next) => {
         const user = validateToken(token);
         const dbUser = await users.findOne(user.userId);
         user.role = dbUser.role;
+        
+        if(dbUser.isLockedOut){
+            return next(new Locked("The user is locked!"));
+        }
         req.user = user;
     } catch (err) {
         return next(new Forbidden());
